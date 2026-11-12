@@ -31,4 +31,4 @@
 
 ---
 
-本项目采用「Vigil 非商业源代码许可协议 1.0」，详见 LICENSE 与 NOTICE。
+本项目采用「Watchpost 非商业源代码许可协议 1.0」，详见 LICENSE 与 NOTICE。

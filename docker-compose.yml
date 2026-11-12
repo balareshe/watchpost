@@ -1,4 +1,4 @@
-name: status-page
+name: watchpost
 
 # 状态页整套服务：Gatus（探针）+ API（事件/公告/通知）+ Watcher（自动工单）+ Collector（导出数据）+ Caddy（入口）
 # 使用：cp .env.example .env && 改好域名/邮箱 && docker compose up -d

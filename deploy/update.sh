@@ -10,7 +10,7 @@ TARGET="$1"
 echo "==> 1/5 备份数据"
 STAMP=$(date +%Y%m%d-%H%M%S)
 mkdir -p /root/dsh-backups
-docker run --rm -v status-page_api-data:/d -v /root/dsh-backups:/b alpine \
+docker run --rm -v watchpost_api-data:/d -v /root/dsh-backups:/b alpine \
   tar -C /d -czf "/b/api-data-$STAMP.tgz" . 2>/dev/null || echo "   (跳过：卷尚不存在)"
 echo "   备份文件: /root/dsh-backups/api-data-$STAMP.tgz"
 
@@ -40,7 +40,7 @@ DOMAIN=${DOMAIN:-status.example.com}
 if sh deploy/verify.sh "$DOMAIN"; then
   echo
   echo "✅ 更新完成（$STAMP）"
-  echo "   如需回滚数据：docker run --rm -v status-page_api-data:/d -v /root/dsh-backups:/b alpine sh -c 'rm -rf /d/* && tar -C /d -xzf /b/api-data-$STAMP.tgz'"
+  echo "   如需回滚数据：docker run --rm -v watchpost_api-data:/d -v /root/dsh-backups:/b alpine sh -c 'rm -rf /d/* && tar -C /d -xzf /b/api-data-$STAMP.tgz'"
 else
   echo
   echo "⚠️ 健康检查未全部通过，请查看：docker compose logs --tail 50"

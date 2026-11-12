@@ -1,4 +1,4 @@
-# Vigil（值守）
+# Watchpost（哨塔）
 
 > 一个自包含的状态页（源代码开放，非商业许可）：探针、事件工单、公告、维护窗口、邮件通知、后台管理，一条 docker compose up -d 跑起来。
 
@@ -105,15 +105,15 @@ sh deploy/verify.sh 你的域名
 
 ```bash
 # 导出（当前机器）
-docker run --rm -v status-page_api-data:/d -v $PWD:/o alpine tar -C /d -czf /o/api-data.tgz .
-docker run --rm -v status-page_gatus-data:/d -v $PWD:/o alpine tar -C /d -czf /o/gatus-data.tgz .
-docker run --rm -v status-page_watcher-state:/d -v $PWD:/o alpine tar -C /d -czf /o/watcher-state.tgz .
+docker run --rm -v watchpost_api-data:/d -v $PWD:/o alpine tar -C /d -czf /o/api-data.tgz .
+docker run --rm -v watchpost_gatus-data:/d -v $PWD:/o alpine tar -C /d -czf /o/gatus-data.tgz .
+docker run --rm -v watchpost_watcher-state:/d -v $PWD:/o alpine tar -C /d -czf /o/watcher-state.tgz .
 
 # 导入（新机器，先 docker compose down）
 docker compose down
-docker volume create status-page_api-data
-docker run --rm -v status-page_api-data:/d -v $PWD:/b alpine tar -C /d -xzf /b/api-data.tgz
-docker run --rm -v status-page_gatus-data:/d -v $PWD:/b alpine tar -C /d -xzf /b/gatus-data.tgz
+docker volume create watchpost_api-data
+docker run --rm -v watchpost_api-data:/d -v $PWD:/b alpine tar -C /d -xzf /b/api-data.tgz
+docker run --rm -v watchpost_gatus-data:/d -v $PWD:/b alpine tar -C /d -xzf /b/gatus-data.tgz
 docker compose up -d
 ```
 
@@ -125,12 +125,12 @@ docker compose up -d
 
 ## 许可与版权
 
-**Vigil 非商业源代码许可协议 1.0**（`LICENSE`），要点：
+**Watchpost 非商业源代码许可协议 1.0**（`LICENSE`），要点：
 
 | 允许 | 要求 | 禁止 |
 |---|---|---|
 | 个人学习、研究 | 保留版权声明与协议全文 | **商业使用**（销售、收费托管、集成进商业产品等） |
-| 内部非营利自用部署 | 分发时署名 **Vigil** 并附原仓库地址 | 删除或隐藏版权信息 |
+| 内部非营利自用部署 | 分发时署名 **Watchpost** 并附原仓库地址 | 删除或隐藏版权信息 |
 | 教学、非营利组织内部使用 | 说明修改版本是否经改动 | 暗示修改版由原作者官方发布 |
 | 在非商业范围内修改与分发 | 另行取得书面授权后方可商用 | 使用本项目商标 |
 
