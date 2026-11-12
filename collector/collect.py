@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 balareshe（摆烂人生） <https://github.com/balareshe/vigil-status>. All rights reserved.
+# Licensed under the Vigil Non-Commercial Source License 1.0 (see LICENSE).
+# 本项目禁止商业使用；分发须保留本声明与授权协议，并署名 Vigil。
 """从 Gatus 的 SQLite 导出差错事件与每日可用率，供状态页静态读取。
 
 用法（容器内）：python collect.py /data/data.db /out/status.json

@@ -28,3 +28,7 @@
 4. 关闭 SSH 密码登录，仅保留密钥
 5. 定期轮换 `ADMIN_TOKEN` 与邮件账号授权码
 6. 不要把 `.env`、`web/data/`、`docker volume` 导出的数据提交进仓库
+
+---
+
+本项目采用「Vigil 非商业源代码许可协议 1.0」，详见 LICENSE 与 NOTICE。
