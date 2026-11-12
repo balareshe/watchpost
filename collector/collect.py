@@ -34,6 +34,14 @@ def iso(value):
 def main():
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
+    # 让「按端点 + 时间窗」的查询走索引；已存在或无权写入时忽略
+    try:
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_results_ep_ts ON endpoint_results(endpoint_id, timestamp)"
+        )
+        con.commit()
+    except sqlite3.Error:
+        pass
 
     names = {
         r["endpoint_id"]: r["endpoint_name"]
@@ -139,25 +147,31 @@ def main():
     for name in names.values():
         series[name] = [None] * BUCKETS
 
-    for r in con.execute("SELECT endpoint_id, success, timestamp FROM endpoint_results"):
-        name = names.get(r["endpoint_id"])
-        if name is None:
-            continue
-        try:
-            ts = parse_ts(r["timestamp"])
-        except ValueError:
-            continue
-        offset = (ts - window_start).total_seconds()
-        if offset < 0:
-            continue
-        idx = min(int(offset // step), BUCKETS - 1)
-        cell = series[name][idx]
-        if cell is None:
-            cell = {"ok": 0, "total": 0}
-            series[name][idx] = cell
-        cell["total"] += 1
-        if r["success"]:
-            cell["ok"] += 1
+    # Gatus 存的时间是 UTC 且格式固定（"YYYY-MM-DD HH:MM:SS.nnn +0000 UTC"），
+    # 用同格式的前缀做字符串比较即可在 SQL 层过滤，避免每次全表扫描。
+    cutoff = window_start.astimezone(dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    for eid, name in names.items():
+        rows = con.execute(
+            "SELECT success, timestamp FROM endpoint_results "
+            "WHERE endpoint_id = ? AND timestamp >= ?",
+            (eid, cutoff),
+        )
+        for r in rows:
+            try:
+                ts = parse_ts(r["timestamp"])
+            except ValueError:
+                continue
+            offset = (ts - window_start).total_seconds()
+            if offset < 0:
+                continue
+            idx = min(int(offset // step), BUCKETS - 1)
+            cell = series[name][idx]
+            if cell is None:
+                cell = {"ok": 0, "total": 0}
+                series[name][idx] = cell
+            cell["total"] += 1
+            if r["success"]:
+                cell["ok"] += 1
 
     # ---- 每天 × 每个组件的可用率（供日历点击后的明细）----
     day_endpoints = {}
