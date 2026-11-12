@@ -43,7 +43,7 @@ for h in strict-transport-security x-content-type-options x-frame-options conten
 done
 
 echo "== 5. 容器（应为 5 个：caddy/api/watcher/collector/gatus）=="
-cd /opt/status-page || exit 1
+cd /opt/watchpost || exit 1
 running=$(docker compose ps --status running --format '{{.Name}}' | wc -l)
 check "运行中的容器数" 5 "$running"
 for name in status-caddy status-api status-watcher status-collector status-gatus; do
@@ -58,9 +58,9 @@ if [ -f /etc/cron.d/status-collector ]; then
 fi
 
 echo "== 6. 密钥与权限 =="
-perm=$(stat -c '%a' /opt/status-page/.env 2>/dev/null)
+perm=$(stat -c '%a' /opt/watchpost/.env 2>/dev/null)
 check ".env 权限" 600 "$perm"
-dev=$(grep '^DEV_ECHO_CODE=' /opt/status-page/.env | cut -d= -f2)
+dev=$(grep '^DEV_ECHO_CODE=' /opt/watchpost/.env | cut -d= -f2)
 check "开发模式已关闭" 0 "$dev"
 
 echo
