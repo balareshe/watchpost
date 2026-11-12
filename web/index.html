@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>站点状态</title>
+<link rel="stylesheet" href="/style.css?v=36">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span id="brandName">站点状态</span><span class="brand-sub" id="brandSub"></span></div>
+  </header>
+
+  <main>
+    <!-- 公告：放在最顶部 -->
+    <section class="block first" id="announcements" hidden>
+      <div class="block-head">
+        <h2>公告</h2>
+        <a class="block-sub rss" href="/feed.xml" target="_blank" rel="noopener">RSS 订阅 ›</a>
+      </div>
+      <div id="annList" class="ann-list"></div>
+    </section>
+
+    <div id="maint" class="banner maint" style="display:none"></div>
+    <div id="banner" class="banner" style="display:none"></div>
+
+    <h1 id="headline">正在加载…</h1>
+    <p id="subline" class="subline">数据每 30 秒刷新一次</p>
+
+    <div id="list" class="list" aria-live="polite"></div>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>事件日历</h2>
+        <span id="calMonth" class="block-sub"></span>
+      </div>
+      <div id="calendar" class="calendar"></div>
+      <div id="calDetail" class="cal-detail" hidden></div>
+      <div class="legend">
+        <span><i class="lg up"></i>正常</span>
+        <span><i class="lg warn"></i>有问题</span>
+        <span><i class="lg down"></i>严重</span>
+        <span><i class="lg none"></i>无数据</span>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>最近事件</h2>
+        <span id="demoBadge" class="demo-badge" hidden>演示数据</span>
+        <span class="block-sub">仅记录探测到的异常，恢复后自动闭合</span>
+      </div>
+      <div id="incidents" class="incidents"></div>
+    </section>
+
+    <p class="foot">
+      <span id="updated">—</span> · 可用率为最近 30 天统计
+    </p>
+  </main>
+
+  <script src="/app.js?v=36"></script>
+</body>
+</html>

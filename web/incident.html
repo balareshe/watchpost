@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>事件详情 · 站点状态</title>
+<link rel="stylesheet" href="/style.css?v=30">
+<style>
+  .inc-page { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+  .back { font-size: 12.5px; color: var(--ink-3); text-decoration: none; }
+  .back:hover { color: var(--ink); }
+  .inc-title { font-size: 21px; font-weight: 700; margin: 16px 0 8px; line-height: 1.35; }
+  .inc-title .en { display: block; font-size: 15px; font-weight: 500; color: var(--ink-2); margin-top: 4px; }
+  .badge { display: inline-block; font-size: 11.5px; padding: 2px 9px; border-radius: 999px; border: 1px solid; }
+  .badge.investigating, .badge.identified, .badge.in_progress { color: #b45309; border-color: #f5c48a; background: #fff7ed; }
+  .badge.monitoring { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+  .badge.resolved { color: #15803d; border-color: #9ad0a8; background: #eef7f0; }
+  .inc-range { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 14px; }
+  .inc-sum { font-size: 13.5px; line-height: 1.7; }
+  .inc-sum .en { color: var(--ink-2); font-size: 12.5px; margin-top: 2px; }
+
+  .block2 { margin-top: 26px; }
+  .block2 h2 { font-size: 15px; margin: 0 0 10px; }
+  .comp-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 6px; }
+  .comp-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .comp-row:last-child { border-bottom: none; }
+  .comp-dot { width: 15px; height: 15px; border-radius: 50%; flex: 0 0 auto; background: var(--up); position: relative; }
+  .comp-dot.bad { background: var(--down); }
+  .comp-dot::after { content: ""; position: absolute; left: 5px; top: 3px; width: 3px; height: 6px;
+    border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .comp-name { font-size: 13px; font-weight: 600; }
+  .comp-pct { margin-left: auto; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .comp-sub { font-size: 11.5px; color: var(--ink-3); }
+
+  .updates { border-left: 2px solid var(--line); margin-left: 5px; padding-left: 16px; }
+  .upd { position: relative; padding: 4px 0 18px; }
+  .upd::before { content: ""; position: absolute; left: -24px; top: 8px; width: 10px; height: 10px;
+    border-radius: 50%; background: #1d4ed8; }
+  .upd.s-resolved::before { background: var(--up); }
+  .upd.s-investigating::before, .upd.s-identified::before, .upd.s-in_progress::before { background: #f59e0b; }
+  .upd-title { font-size: 13.5px; font-weight: 600; }
+  .upd-time { font-size: 11.5px; color: var(--ink-3); margin: 2px 0 6px; }
+  .upd-text { font-size: 12.5px; line-height: 1.65; }
+  .upd-text .en { color: var(--ink-2); margin-top: 2px; }
+  .empty { color: var(--ink-3); font-size: 12.5px; }
+  .sev-badge {
+    display: inline-block; font-size: 11.5px; padding: 2px 9px;
+    border-radius: 999px; border: 1px solid; vertical-align: 1px; margin-left: 4px;
+  }
+  .sev-badge.down { color: #b42318; background: #fef3f2; border-color: #fecdca; }
+  .sev-badge.warn { color: #b45309; background: #fff7ed; border-color: #f5c48a; }
+  .sev-badge.maint { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+  .sev-badge.info { color: #4b5563; background: #f3f4f6; border-color: #e5e7eb; }
+</style>
+</head>
+<body>
+<header class="topbar"><div class="brand">站点状态</div></header>
+
+<div class="inc-page">
+  <a class="back" href="/">‹ 返回状态页</a>
+  <div id="body"><p class="empty">加载中…</p></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var STATUS_LABEL = {
+    investigating: "排查中", identified: "已定位", in_progress: "修复中",
+    monitoring: "监控中", resolved: "已恢复"
+  };
+  // 受影响组件按事件里记录的顺序展示
+  var SEVERITY_LABEL = { critical: "重大", major: "严重", minor: "一般", info: "提示", maintenance: "维护", down: "重大", warn: "一般" };
+
+  function severityClass(sev) {
+    if (sev === "critical" || sev === "major" || sev === "down") return "down";
+    if (sev === "maintenance") return "maint";
+    if (sev === "info") return "info";
+    return "warn";
+  }
+
+  function id() {
+    return new URLSearchParams(location.search).get("id") || "";
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function fmtFull(iso) {
+    var d = new Date(iso);
+    return d.toLocaleString("zh-CN", {
+      hour12: false, year: "numeric", month: "long", day: "numeric",
+      weekday: "long", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function fmtDur(sec) {
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    if (h && m) return h + "h " + m + "min";
+    if (h) return h + "h";
+    return m + "min";
+  }
+
+  function load() {
+    var want = id();
+    Promise.all([
+      fetch("/api/incidents", { cache: "no-store" }).then(function (r) { return r.json(); }),
+      fetch("/data/status.json?v=4", { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; })
+    ]).then(function (res) {
+      var data = res[0] || {};
+      var statusData = res[1] || {};
+      var inc = (data.incidents || []).filter(function (i) { return i.id === want; })[0];
+      if (!inc) {
+        document.getElementById("body").innerHTML = '<p class="empty">没有找到这条事件（可能已被删除）。</p>';
+        return;
+      }
+      render(inc, statusData);
+    }).catch(function (e) {
+      document.getElementById("body").innerHTML = '<p class="empty">加载失败：' + esc(e.message) + '</p>';
+    });
+  }
+
+  function render(inc, statusData) {
+    var start = new Date(inc.startedAt).getTime();
+    var end = inc.resolvedAt ? new Date(inc.resolvedAt).getTime() : Date.now();
+    var dayKey = new Date(inc.startedAt).toLocaleDateString("sv-SE"); // YYYY-MM-DD
+    var per = (statusData.dayEndpoints || {})[dayKey] || {};
+
+    var comps = (inc.affected || []).slice().sort(function (a, b) {
+      return 0;
+    }).map(function (name) {
+      var e = per[name];
+      var ratio = e && e.total ? e.up / e.total : null;
+      var bad = ratio != null && ratio < 0.995;
+      return '<div class="comp-row">' +
+        '<span class="comp-dot' + (bad ? " bad" : "") + '"></span>' +
+        '<span class="comp-name">' + esc(name) + '</span>' +
+        '<span class="comp-pct">' + (ratio == null ? "—" : (ratio * 100).toFixed(2) + "%") + '</span>' +
+        '<span class="comp-sub">' + (e && e.total ? e.up + "/" + e.total : "无数据") + '</span>' +
+      '</div>';
+    }).join("");
+
+    var updates = (inc.updates || []).slice().sort(function (a, b) {
+      return new Date(b.at) - new Date(a.at);
+    }).map(function (u) {
+      var st = u.status || inc.status;
+      return '<div class="upd s-' + st + '">' +
+        '<div class="upd-title">' + (STATUS_LABEL[st] || st) + '</div>' +
+        '<div class="upd-time">' + esc(fmtFull(u.at)) + '</div>' +
+        '<div class="upd-text">' + esc(u.text) +
+          (u.textEn ? '<div class="en">' + esc(u.textEn) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join("");
+
+    document.getElementById("body").innerHTML =
+      '<div class="inc-title">' + esc(inc.title) +
+        (inc.titleEn ? '<span class="en">' + esc(inc.titleEn) + '</span>' : '') +
+      '</div>' +
+      '<span class="badge ' + inc.status + '">' + (STATUS_LABEL[inc.status] || inc.status) + '</span>' +
+      ' <span class="sev-badge ' + severityClass(inc.severity) + '">' + (SEVERITY_LABEL[inc.severity] || "一般") + '</span>' +
+      '<div class="inc-range">' + esc(fmtFull(inc.startedAt)) +
+        ' ~ ' + (inc.resolvedAt ? esc(fmtFull(inc.resolvedAt)) : "进行中") +
+        ' · ' + fmtDur(Math.max(0, Math.round((end - start) / 1000))) + ' · Asia/Shanghai</div>' +
+      '<div class="inc-sum">' + esc(inc.summary || "") +
+        (inc.summaryEn ? '<div class="en">' + esc(inc.summaryEn) + '</div>' : '') +
+      '</div>' +
+      (comps ? '<div class="block2"><h2>受影响组件</h2><div class="comp-card">' + comps + '</div></div>' : '') +
+      '<div class="block2"><h2>更新记录</h2><div class="updates">' +
+        (updates || '<p class="empty">暂无更新</p>') + '</div></div>';
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

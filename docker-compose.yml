@@ -1,0 +1,114 @@
+name: status-page
+
+# 状态页整套服务：Gatus（探针）+ API（事件/公告/通知）+ Watcher（自动工单）+ Collector（导出数据）+ Caddy（入口）
+# 使用：cp .env.example .env && 改好域名/邮箱 && docker compose up -d
+
+services:
+  # 探针与历史（每 30s 探测一次，数据存 volume）
+  gatus:
+    image: twinproduction/gatus:latest
+    container_name: status-gatus
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      - ./config/gatus:/config:ro
+      - gatus-data:/data
+
+  # 业务 API：事件 / 公告 / 维护窗口 / 节点 / 用户 / 设置 / 登录
+  status-api:
+    image: python:3-alpine
+    container_name: status-api
+    restart: unless-stopped
+    command: ["python", "/app/app.py"]
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - PORT=8099
+      - ADMIN_TOKEN=${ADMIN_TOKEN:?请在 .env 里设置 ADMIN_TOKEN}
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      - DEV_ECHO_CODE=${DEV_ECHO_CODE:-0}
+      - DATA_FILE=/data/status-data.json
+      - SITE_URL=${PUBLIC_URL:-https://status.example.com}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_SECURE=${SMTP_SECURE:-1}
+    volumes:
+      - ./server:/app:ro
+      - api-data:/data
+
+  # 后台任务：失败重试→自动开单、慢响应记录、RSS 生成、自定义节点探测
+  status-watcher:
+    image: python:3-alpine
+    container_name: status-watcher
+    restart: unless-stopped
+    command: ["python", "/app/watch.py"]
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:?请在 .env 里设置 ADMIN_TOKEN}
+      - GATUS_URL=http://gatus:8080
+      - API_URL=http://status-api:8099
+      - WEB_DIR=/web
+      - STATE_DIR=/state
+      - GATUS_CONFIG=/config/config.yaml
+      - SITE_URL=${PUBLIC_URL:-https://status.example.com}
+      - FAIL_THRESHOLD=${FAIL_THRESHOLD:-3}
+      - RECOVER_THRESHOLD=${RECOVER_THRESHOLD:-3}
+      - RETRY_TIMES=${RETRY_TIMES:-3}
+      - RETRY_GAP_SEC=${RETRY_GAP_SEC:-2}
+      - SLOW_MS=${SLOW_MS:-800}
+      - SLOW_STREAK=${SLOW_STREAK:-3}
+      - INTERVAL_SEC=${INTERVAL_SEC:-60}
+    volumes:
+      - ./server:/app:ro
+      - ./web:/web
+      - ./config/gatus:/config:ro
+      - watcher-state:/state
+
+  # 数据导出：每 2 分钟把 Gatus 的 SQLite 导成状态页读取的静态 JSON
+  status-collector:
+    image: python:3-alpine
+    container_name: status-collector
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          python /app/collect.py /gatus/data.db /web/data/status.json || echo "[collector] 本轮失败"
+          sleep ${COLLECT_INTERVAL:-120}
+        done
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      - ./collector:/app:ro
+      - ./web:/web
+      - gatus-data:/gatus
+
+  # 对外入口：HTTPS + 静态页 + /api 反向代理 + 安全响应头
+  caddy:
+    image: caddy:2-alpine
+    container_name: status-caddy
+    restart: unless-stopped
+    depends_on:
+      - gatus
+      - status-api
+    environment:
+      - DOMAIN=${DOMAIN:-status.example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv/web:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  gatus-data:
+  api-data:
+  watcher-state:
+  caddy-data:
+  caddy-config:

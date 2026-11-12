@@ -1,0 +1,109 @@
+# 状态页入口
+# /api/incidents* 与 /api/health 转发给事件工单 API；其余静态页由自建前端提供。
+
+{$DOMAIN:status.example.com} {
+	tls internal
+	encode gzip
+
+	header {
+		Cache-Control "no-store"
+		CDN-Cache-Control "no-store"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	# /admin 跳到 /admin/（放在站点层，handle 里的 redir 会被当成匹配器解析）
+	redir /admin /admin/ 302
+	redir /admin.html /admin/ 302
+
+	# 前台需要读取的两个数据文件（其余 /data/* 一律 404）
+	handle /data/status.json {
+		root * /srv/web
+		file_server
+	}
+
+	handle /data/nodes.json {
+		root * /srv/web
+		file_server
+	}
+
+	handle /data/* {
+		respond 404
+	}
+
+	handle /config/* {
+		respond 404
+	}
+
+	handle /.git/* {
+		respond 404
+	}
+
+	handle /.env {
+		respond 404
+	}
+
+	handle /api/incidents* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/announcements* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/maintenance* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/nodes* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/auth* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/users* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/settings* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/notify* {
+		reverse_proxy status-api:8099
+	}
+
+	handle /api/health {
+		reverse_proxy status-api:8099
+	}
+
+
+	handle /admin/* {
+		root * /srv/web
+		file_server
+	}
+
+	handle /api/* {
+		reverse_proxy gatus:8080
+	}
+
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+
+	@blocked path /data/* /config/*
+	respond @blocked 404
+}
+
+http://{$DOMAIN:status.example.com} {
+	redir https://{host}{uri} permanent
+}

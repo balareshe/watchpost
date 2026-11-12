@@ -1,0 +1,68 @@
+# 状态页探针配置（Gatus）
+# 说明：这里的每一项都会出现在状态页上，interval 最小 30s（Gatus 限制 30s–1h）。
+
+# p95 > 2000ms、响应体过小等判定等 /health 接口上线后再补。
+
+storage:
+  type: sqlite
+  path: /data/data.db
+  caching: true
+
+web:
+  port: 8080
+
+endpoints:
+  # ---- 访客面：走 Cloudflare，验的是"用户能不能打开" ----
+  - name: 主站
+    group: 访客面
+    url: https://www.example.com/
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 2000"
+
+  - name: 应用
+    group: 访客面
+    url: https://app.example.com/
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 2000"
+
+  - name: 根域
+    group: 访客面
+    url: https://example.com/
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: 静态资源
+    group: 访客面
+    url: https://www.example.com/static/notice.js
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 1500"
+
+  # ---- 源站直连：绕过 CDN，直接验生产机是否活着 ----
+  - name: 源站
+    group: 源站
+    url: tcp://192.0.2.10:443
+    interval: 30s
+    conditions:
+      - "[CONNECTED] == true"
+
+  # 生产端需要先实现 /health/live 与 /health/ready，并在 nginx 加白名单 location。
+  # - name: portal 存活
+  #   group: 源站
+  #   url: https://status-probe.invalid/health/live   # 换成白名单后的真实地址
+  #   interval: 30s
+  #   conditions:
+  #     - "[STATUS] == 200"
+  #
+  # - name: portal 就绪（DB + storage）
+  #   group: 源站
+  #   url: https://status-probe.invalid/health/ready
+  #   interval: 60s
+  #   conditions:
+  #     - "[STATUS] == 200"

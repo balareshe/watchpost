@@ -1,0 +1,18 @@
+# 依赖与构建产物
+admin-app/node_modules/
+dist/
+
+# 运行时与本地环境
+.env
+.env.*
+!.env.example
+web/data/*.json
+web/data/*.tmp
+legacy/
+
+# 备份与临时
+*.bak
+*.bak-*
+*.log
+.DS_Store
+Thumbs.db

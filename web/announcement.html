@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>公告 · 站点状态</title>
+<link rel="stylesheet" href="/style.css?v=30">
+<style>
+  .ann-page { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+  .back { font-size: 12.5px; color: var(--ink-3); text-decoration: none; }
+  .back:hover { color: var(--ink); }
+  .ann-title2 { font-size: 20px; font-weight: 700; margin: 16px 0 8px; line-height: 1.4; }
+  .ann-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); margin-bottom: 18px; }
+  .ann-pin2 { font-size: 10.5px; background: #1f2328; color: #fff; border-radius: 4px; padding: 1px 6px; }
+  .ann-level { font-size: 11px; border-radius: 999px; padding: 1px 8px; border: 1px solid; }
+  .ann-level.info { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+  .ann-level.warning { color: #b45309; border-color: #f5c48a; background: #fff7ed; }
+  .ann-body2 { font-size: 13.5px; line-height: 1.85; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+  .empty { color: var(--ink-3); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header class="topbar"><div class="brand">站点状态</div></header>
+<div class="ann-page">
+  <a class="back" href="/#announcements">‹ 返回状态页</a>
+  <div id="body"><p class="empty">加载中…</p></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var id = new URLSearchParams(location.search).get("id") || "";
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function fmt(iso) {
+    var d = new Date(iso);
+    return d.toLocaleString("zh-CN", {
+      hour12: false, year: "numeric", month: "long", day: "numeric",
+      weekday: "long", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  fetch("/api/announcements", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var list = data.announcements || [];
+      var ann = list.filter(function (a) { return a.id === id; })[0];
+      var box = document.getElementById("body");
+      if (!ann) {
+        box.innerHTML = '<p class="empty">没有找到这条公告（可能已被删除）。</p>' +
+          '<p class="empty" style="margin-top:10px"><a class="back" href="/#announcements">返回公告列表</a></p>';
+        return;
+      }
+      document.title = ann.title + " · 站点状态";
+      box.innerHTML =
+        '<div class="ann-title2">' + esc(ann.title) + '</div>' +
+        '<div class="ann-meta">' +
+          (ann.pinned ? '<span class="ann-pin2">置顶</span>' : '') +
+          '<span class="ann-level ' + (ann.level === "warning" ? "warning" : "info") + '">' +
+            (ann.level === "warning" ? "重要" : "普通") + '</span>' +
+          '<span>' + esc(fmt(ann.createdAt)) + '</span>' +
+        '</div>' +
+        '<div class="ann-body2">' + esc(ann.body || "（无正文）") + '</div>';
+    })
+    .catch(function (e) {
+      document.getElementById("body").innerHTML = '<p class="empty">加载失败：' + esc(e.message) + '</p>';
+    });
+})();
+</script>
+</body>
+</html>
