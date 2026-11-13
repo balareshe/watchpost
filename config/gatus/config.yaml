@@ -7,6 +7,12 @@ storage:
   type: sqlite
   path: /data/data.db
   caching: true
+  # 每个端点保留最近 2880 条探测结果（30s 间隔 ≈ 24 小时），
+  # 默认只有 100 条（30s ≈ 50 分钟），会让前台 24 小时条形图只能看到最近一小段。
+  # 内存/磁盘占用随条数线性增长，5 个端点约 1.4 万行，可忽略。
+  maximum-number-of-results: 2880
+  # 状态变化事件（START/HEALTHY/UNHEALTHY）默认只留 50 条
+  maximum-number-of-events: 500
 
 web:
   port: 8080

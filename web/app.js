@@ -96,13 +96,13 @@
     return bars;
   }
 
+  // 条形图配色：全成功=绿，部分失败=黄，全失败=红，无数据=灰。
+  // 之前按 100%/90%/50% 分四档，导致「15 分钟内挂了几次」仍显示浅绿，看不到问题。
   function barClass(cell) {
     if (!cell) return "";
-    var ratio = cell.ok / cell.total;
-    if (ratio >= 1) return "up";
-    if (ratio >= 0.9) return "soft";
-    if (ratio >= 0.5) return "warn";
-    return "down";
+    if (cell.ok >= cell.total) return "up";
+    if (!cell.ok) return "down";
+    return "soft";
   }
 
   function uptimeClass(ratio) {
