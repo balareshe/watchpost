@@ -47,7 +47,7 @@
 | `web/admin/` | 后台构建产物（**已提交，部署时不需要 Node**） | 后台界面 |
 | `admin-app/` | 后台源码（Vue 3 + Vite） | 改完要 `npm run build` |
 | `deploy/update.sh` | 一键更新：备份 → 拉代码 → 重建 → 验收 | 升级流程 |
-| `deploy/verify.sh` | 18 项验收检查 | 上线自检 |
+| `deploy/verify.sh` | 验收检查：页面 / 敏感路径 / 鉴权 / 安全头 / 容器 / 密钥权限 | 上线自检 |
 | `.github/workflows/ci.yml` | CI：Python 语法+冒烟、前端构建、compose 校验 | PR 质量 |
 | `.github/workflows/release.yml` | 打 tag 自动构建镜像推 GHCR（amd64+arm64） | 镜像发布 |
 | `VERSION` | 版本号，`/api/health` 与后台侧栏显示 | 版本标识 |
@@ -174,7 +174,7 @@ docker compose logs -f status-collector            # 数据导出
 docker compose restart status-api                  # 改后端后重启（源码模式）
 docker compose exec status-api sh                  # 进容器
 curl -s https://<域名>/api/health                  # 版本与存活
-sh deploy/verify.sh <域名>                         # 18 项验收
+sh deploy/verify.sh <域名>                         # 分组逐项验收
 ```
 
 排障顺序：`/api/health` → 容器状态 → 对应服务日志 → `web/data/status.json` 是否有新数据 → Caddy 反代。
