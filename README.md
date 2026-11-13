@@ -23,6 +23,10 @@ docker compose up -d
 
 打开 `https://<你的域名>/admin/`，用 `ADMIN_EMAILS` 里的邮箱接收验证码登录。
 
+> 镜像由 GitHub Actions 在打 tag 时构建并推送到 GHCR（`linux/amd64` + `linux/arm64`）。
+> 用 `WATCHPOST_VERSION=0.1.0` 固定版本，留空则跟随 `latest`。
+> 想直接跑本地源码调试：`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
+
 > 首次启动会自动用 `ADMIN_EMAILS` 建管理员账号。
 > 如果没有配 SMTP 且 `DEV_ECHO_CODE=0`，验证码会打印在 `docker compose logs status-api` 里（`[login] ... 验证码`）。
 
