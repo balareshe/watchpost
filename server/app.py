@@ -12,6 +12,7 @@
 """
 import datetime as dt
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -409,6 +410,59 @@ def ensure_users():
             print("seeded %d admin user(s) from ADMIN_EMAILS" % len(data["users"]), flush=True)
 
 
+# ---------------- 首次安装引导 ----------------
+SETUP_TOKEN = ""          # 首次启动且尚无任何用户时生成，只打印到日志
+SETUP_TRIES = {}          # ip -> [timestamps]，防止爆破初始化令牌
+SETUP_LIMIT_PER_HOUR = 10
+
+
+def setup_needed():
+    """是否需要首次初始化：没有用户、没配 ADMIN_EMAILS、且从未初始化过。"""
+    if ADMIN_EMAILS:
+        return False
+    with LOCK:
+        data = load()
+    if data.get("users"):
+        return False
+    if (data.get("settings") or {}).get("setupCompletedAt"):
+        return False
+    return True
+
+
+def complete_setup(email, smtp):
+    """创建首个管理员、写入 SMTP、标记安装完成。已初始化则返回 None。"""
+    with LOCK:
+        data = load()
+        if data.get("users"):
+            return None
+        user = build_user({"email": email, "role": "admin"})
+        data.setdefault("users", []).append(user)
+        settings = data.get("settings") or {}
+        settings["setupCompletedAt"] = now_iso()
+        if smtp:
+            settings.setdefault("notify", {}).update(smtp)
+        data["settings"] = settings
+        save(data)
+    return user
+
+
+def clear_setup_token():
+    global SETUP_TOKEN
+    SETUP_TOKEN = ""
+
+
+def init_setup_token():
+    """首次启动且未初始化时，生成一次性初始化令牌并打印到日志。"""
+    global SETUP_TOKEN
+    if not setup_needed():
+        return
+    SETUP_TOKEN = secrets.token_urlsafe(24)
+    print("=" * 64, flush=True)
+    print("首次安装：用浏览器打开 https://<你的域名>/admin/ 完成初始化", flush=True)
+    print("初始化令牌（一次性，容器重启会变）: %s" % SETUP_TOKEN, flush=True)
+    print("=" * 64, flush=True)
+
+
 def allowed_user(email):
     """登录校验：用户存在且启用（ADMIN_EMAILS 始终放行，防止把自己锁在外面）。"""
     email = (email or "").lower()
@@ -689,11 +743,24 @@ class Handler(BaseHTTPRequestHandler):
         IP_CODES[ip] = stamps
         return True
 
+    def _setup_allowed(self):
+        ip = self._client_ip()
+        now = time.time()
+        stamps = [t for t in SETUP_TRIES.get(ip, []) if t > now - 3600]
+        if len(stamps) >= SETUP_LIMIT_PER_HOUR:
+            SETUP_TRIES[ip] = stamps
+            return False
+        stamps.append(now)
+        SETUP_TRIES[ip] = stamps
+        return True
+
     def _parts(self):
         return [p for p in self.path.split("?", 1)[0].split("/") if p]
 
     def do_GET(self):
         parts = self._parts()
+        if parts == ["api", "setup"]:
+            return self._send(200, {"needed": setup_needed()})
         if parts == ["api", "settings"]:
             settings = get_settings()
             return self._send(200, {k: settings.get(k) for k in PUBLIC_SETTING_KEYS})
@@ -766,6 +833,41 @@ class Handler(BaseHTTPRequestHandler):
             incident = body.get("incident") or {}
             sent, failed, skipped = notify_incident(incident, body.get("kind") or "new")
             return self._send(200, {"sent": sent, "failed": failed, "skipped": skipped})
+
+        # ---- 首次安装：创建首个管理员并写入 SMTP ----
+        if parts == ["api", "setup"]:
+            if not setup_needed():
+                return self._send(400, {"error": "already initialized"})
+            if not self._setup_allowed():
+                return self._send(429, {"error": "请求过于频繁，请稍后再试"})
+            body = raw_body or {}
+            token = str(body.get("token") or "").strip()
+            if not SETUP_TOKEN or not hmac.compare_digest(token, SETUP_TOKEN):
+                return self._send(403, {"error": "初始化令牌不正确"})
+            email = str(body.get("email") or "").strip().lower()
+            if not email or "@" not in email:
+                return self._send(400, {"error": "请填写有效的管理员邮箱"})
+            mail = body.get("smtp") or {}
+            smtp = {}
+            if isinstance(mail, dict) and (mail.get("smtpHost") or "").strip():
+                try:
+                    smtp = {
+                        "enabled": True,
+                        "smtpHost": str(mail.get("smtpHost")).strip(),
+                        "smtpPort": int(mail.get("smtpPort") or 465),
+                        "smtpUser": str(mail.get("smtpUser") or "").strip(),
+                        "smtpPass": str(mail.get("smtpPass") or ""),
+                        "smtpFrom": str(mail.get("smtpFrom") or "").strip(),
+                        "smtpSecure": mail.get("smtpSecure") is not False,
+                    }
+                except (TypeError, ValueError):
+                    return self._send(400, {"error": "SMTP 端口格式不正确"})
+            user = complete_setup(email, smtp)
+            if user is None:
+                return self._send(400, {"error": "already initialized"})
+            clear_setup_token()
+            print("[setup] 初始化完成，管理员 %s" % email, flush=True)
+            return self._send(201, {"ok": True, "email": email, "hasSmtp": bool(smtp)})
 
         if parts == ["api", "auth", "request-code"]:
             body = raw_body or {}
@@ -904,4 +1006,8 @@ if __name__ == "__main__":
         ensure_users()
     except Exception as exc:
         print("seed users failed: %r" % (exc,), flush=True)
+    try:
+        init_setup_token()
+    except Exception as exc:
+        print("init setup token failed: %r" % (exc,), flush=True)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()

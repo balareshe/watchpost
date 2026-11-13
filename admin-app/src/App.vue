@@ -5,10 +5,13 @@ import { ref } from "vue";
 import { session, loadSession, logout, isAdmin, canWrite, isViewer } from "./store";
 import { get } from "./api";
 import Login from "./views/Login.vue";
+import Setup from "./views/Setup.vue";
 
 const router = useRouter();
 const route = useRoute();
 const version = ref("");
+const setupNeeded = ref(false);
+const setupChecked = ref(false);
 
 // 每个页面允许的角色
 const ALLOWED = {
@@ -39,12 +42,28 @@ const NAV = [
 ];
 
 onMounted(async () => {
-  await loadSession();
+  // 先查是否需要首次初始化：需要的话不加载会话、直接进安装页
+  try {
+    const state = await get("/api/setup");
+    setupNeeded.value = !!state.needed;
+  } catch {
+    setupNeeded.value = false;
+  }
+  setupChecked.value = true;
+  if (!setupNeeded.value) {
+    await loadSession();
+  }
   get("/api/health").then((h) => { version.value = h.version || ""; }).catch(() => {});
   window.addEventListener("auth:expired", () => {
     session.authed = false;
   });
 });
+
+function onSetupDone() {
+  setupNeeded.value = false;
+  // 把刚建的管理员账号填进登录框，用户只差一步收验证码
+  loadSession();
+}
 
 watch(
   [() => route.name, () => session.role, () => session.authed],
@@ -72,7 +91,11 @@ async function doLogout() {
 </script>
 
 <template>
-  <div v-if="!session.ready" class="booting">加载中…</div>
+  <div v-if="!session.ready && !setupChecked" class="booting">加载中…</div>
+
+  <Setup v-else-if="setupNeeded" @done="onSetupDone" />
+
+  <div v-else-if="!session.ready" class="booting">加载中…</div>
 
   <Login v-else-if="!session.authed" />
 

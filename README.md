@@ -25,22 +25,28 @@
 ## 快速开始
 
 ```bash
-cp .env.example .env
-# 至少改这两项：
-#   ADMIN_TOKEN=<随机 24 位以上>
-#   ADMIN_EMAILS=you@example.com
-docker compose pull      # 拉取预构建镜像 ghcr.io/balareshe/watchpost-core
+cp .env.example .env      # 只填 ADMIN_TOKEN（随机 24 位以上）
+docker compose pull       # 拉取预构建镜像 ghcr.io/balareshe/watchpost-core
 docker compose up -d
 ```
 
-打开 `https://<你的域名>/admin/`，用 `ADMIN_EMAILS` 里的邮箱接收验证码登录。
+打开 `https://<你的域名>/admin/`，页面会**自动弹出首次安装向导**：
+
+1. 从启动日志里抄一次性**初始化令牌**：
+   ```bash
+   docker compose logs status-api | grep 初始化令牌
+   ```
+2. 填管理员邮箱 + 可选 SMTP → 完成安装
+3. 用刚填的邮箱收验证码登录
+
+> 不想用向导也可以：在 `.env` 里配 `ADMIN_EMAILS=you@example.com`，启动时自动播种管理员账号，
+> 向导就不会出现（这是老部署的兼容路径）。
 
 > 镜像由 GitHub Actions 在打 tag 时构建并推送到 GHCR（`linux/amd64` + `linux/arm64`）。
-> 用 `WATCHPOST_VERSION=0.1.0` 固定版本，留空则跟随 `latest`。
-> 想直接跑本地源码调试：`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
+> 用 `WATCHPOST_VERSION=0.1.2` 固定版本，留空则跟随 `latest`。
 
-> 首次启动会自动用 `ADMIN_EMAILS` 建管理员账号。
-> 如果没有配 SMTP 且 `DEV_ECHO_CODE=0`，验证码会打印在 `docker compose logs status-api` 里（`[login] ... 验证码`）。
+> 首次启动会自动用 `ADMIN_EMAILS` 建管理员账号（如果配了）。
+> 如果没有配 SMTP，验证码会打印在 `docker compose logs status-api` 里（`[login] ... 验证码`）。
 
 ## 组成
 
@@ -92,7 +98,7 @@ cd admin-app && npm install && npm run build   # 产物输出到 web/admin/
 | 变量 | 说明 |
 |---|---|
 | `ADMIN_TOKEN` | 服务令牌，watcher 调 API 用；请用随机串 |
-| `ADMIN_EMAILS` | 可登录后台的邮箱，逗号分隔 |
+| `ADMIN_EMAILS` | 可登录后台的邮箱，逗号分隔；**配了就不弹安装向导**（留空则首次访问自动进向导） |
 | `DOMAIN` / `PUBLIC_URL` | 对外域名与完整地址 |
 | `SMTP_*` | 邮件服务器（也可在后台「通知」页配置） |
 | `RETRY_TIMES` / `RETRY_GAP_SEC` | 失败重试次数与间隔，全失败才升红开单 |

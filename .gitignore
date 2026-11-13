@@ -10,6 +10,7 @@ __pycache__/
 !.env.example
 web/data/*.json
 web/data/*.tmp
+web/feed.xml
 legacy/
 
 # 备份与临时

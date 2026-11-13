@@ -119,7 +119,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 | 变量 | 必填 | 说明 |
 |---|---|---|
 | `ADMIN_TOKEN` | ✅ | 服务令牌，watcher 调 API 用；随机 24 位以上 |
-| `ADMIN_EMAILS` | ✅ | 可登录后台的邮箱，逗号分隔；首次启动自动建账号 |
+| `ADMIN_EMAILS` | — | 可登录后台的邮箱，逗号分隔；首次启动自动建账号。**留空则走首次安装向导**（v0.1.2 起） |
 | `DOMAIN` / `PUBLIC_URL` | ✅ | 域名与完整地址（Caddy 模板变量 / 通知链接） |
 | `WATCHPOST_VERSION` | — | 镜像版本，空则 `latest` |
 | `SMTP_HOST/PORT/USER/PASS/FROM/SECURE` | — | 邮件；也可在后台「通知」页配置（后台优先） |
@@ -232,6 +232,12 @@ sh deploy/verify.sh <域名>                         # 分组逐项验收
 22. **`sessions.json` 的读-改-写要整体加锁**：只有文件级原子替换不够，两个并发登录会互相覆盖，表现为「刚登录就被踢」。
 23. **慢响应工单别用标题文案当标识**：去重和自动关闭都靠 `is_slow_incident()`，后台一改模板就失效。现在写入 `kind: "slow"`，老数据仍按「silent + 标题」回退。
 24. **dev 模式改 `collector/collect.py` 不生效**：镜像里执行的是 `/app/collect.py` 这份拷贝，只挂 `./collector` 没用；dev 覆盖已把 command 改成走挂载路径。
+
+### 2026-11 新增（v0.1.2）
+
+25. **首次安装向导**：不填 `ADMIN_EMAILS` 时没有账号可登录（历史设计缺陷）。现在 `/admin/` 会自动进安装页，令牌从日志取。见 README「快速开始」。
+26. **安装接口必须默认关闭**：`GET /api/setup` 只报 `needed`；`POST` 需要一次性令牌、单 IP 限流、且 `users` 非空时永久拒绝，否则就是公网抢注后门。
+27. **初始化令牌不能落盘**：只存内存、只打印日志，容器重启即失效；不要为了「方便」写进 `.env` 或返回给前端。
 
 ---
 
