@@ -242,3 +242,7 @@ sh deploy/verify.sh <域名>                         # 18 项验收
 
 Copyright (C) 2026 balareshe（摆烂人生） · https://github.com/balareshe/watchpost
 第三方组件许可证见 `NOTICE`。
+
+---
+
+延伸阅读：[架构与设计取舍](docs/ARCHITECTURE.md)（为什么不用数据库、为什么先重试再开单等决策的完整说明）。
