@@ -22,6 +22,10 @@ import sys
 DB = sys.argv[1] if len(sys.argv) > 1 else "/data/data.db"
 OUT = sys.argv[2] if len(sys.argv) > 2 else "/out/status.json"
 TZ = dt.timezone(dt.timedelta(hours=8))  # Asia/Shanghai
+# 「重大」的最小持续时间：Gatus 事件只记录状态翻转，单次探测失败也会产生一条
+# UNHEALTHY 事件，持续时间最多等于一个探测间隔。默认 90 秒 ≈ 3 次连续失败，
+# 低于它的按「一般」处理（黄色），避免把已自愈的抖动显示成重大。
+CRITICAL_MIN_SEC = int(os.environ.get("CRITICAL_MIN_SEC") or 90)
 
 
 def parse_ts(raw):
@@ -128,14 +132,19 @@ def main():
     incidents = []
     for item in merged[-100:]:
         end = item["end"] or now
+        duration = max(0, int((end - item["start"]).total_seconds()))
+        severity = item["severity"]
+        if severity == "down" and duration < CRITICAL_MIN_SEC:
+            # 单次/两次探测失败就自愈的，不算重大：Watcher 那边也是这么判的（重试成功不开单）
+            severity = "warn"
         incidents.append(
             {
                 "start": iso(item["start"]),
                 "end": iso(item["end"]),
                 "ongoing": item["end"] is None,
-                "severity": item["severity"],
+                "severity": severity,
                 "endpoints": sorted(item["endpoints"]),
-                "durationSec": max(0, int((end - item["start"]).total_seconds())),
+                "durationSec": duration,
             }
         )
 

@@ -82,6 +82,7 @@ services:
         done
     environment:
       - TZ=${TZ:-Asia/Shanghai}
+      - CRITICAL_MIN_SEC=${CRITICAL_MIN_SEC:-90}
     volumes:
       - ./web:/web
       - gatus-data:/gatus
