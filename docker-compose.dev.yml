@@ -1,0 +1,34 @@
+# 开发调试覆盖：本地改代码即时生效，不依赖 GHCR 镜像
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+name: watchpost
+
+services:
+  status-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: watchpost-core:dev
+    volumes:
+      - ./server:/app:ro
+      - api-data:/data
+
+  status-watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: watchpost-core:dev
+    volumes:
+      - ./server:/app:ro
+      - ./web:/web
+      - ./config/gatus:/config:ro
+      - watcher-state:/state
+
+  status-collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: watchpost-core:dev
+    volumes:
+      - ./collector:/app/collector:ro
+      - ./web:/web
+      - gatus-data:/gatus

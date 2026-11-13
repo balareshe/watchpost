@@ -1,10 +1,12 @@
 name: watchpost
 
-# 状态页整套服务：Gatus（探针）+ API（事件/公告/通知）+ Watcher（自动工单）+ Collector（导出数据）+ Caddy（入口）
-# 使用：cp .env.example .env && 改好域名/邮箱 && docker compose up -d
+# 默认使用 GHCR 预构建镜像；本地改代码调试用 docker-compose.dev.yml（挂载源码）
+# 固定版本：在 .env 里设置 WATCHPOST_VERSION=0.1.0
+
+x-core: &core-image ghcr.io/balareshe/watchpost-core:${WATCHPOST_VERSION:-latest}
 
 services:
-  # 探针与历史（每 30s 探测一次，数据存 volume）
+  # 探针与历史（数据存卷）
   gatus:
     image: twinproduction/gatus:latest
     container_name: status-gatus
@@ -17,7 +19,7 @@ services:
 
   # 业务 API：事件 / 公告 / 维护窗口 / 节点 / 用户 / 设置 / 登录
   status-api:
-    image: python:3-alpine
+    image: *core-image
     container_name: status-api
     restart: unless-stopped
     command: ["python", "/app/app.py"]
@@ -36,12 +38,11 @@ services:
       - SMTP_FROM=${SMTP_FROM:-}
       - SMTP_SECURE=${SMTP_SECURE:-1}
     volumes:
-      - ./server:/app:ro
       - api-data:/data
 
   # 后台任务：失败重试→自动开单、慢响应记录、RSS 生成、自定义节点探测
   status-watcher:
-    image: python:3-alpine
+    image: *core-image
     container_name: status-watcher
     restart: unless-stopped
     command: ["python", "/app/watch.py"]
@@ -62,14 +63,13 @@ services:
       - SLOW_STREAK=${SLOW_STREAK:-3}
       - INTERVAL_SEC=${INTERVAL_SEC:-60}
     volumes:
-      - ./server:/app:ro
       - ./web:/web
       - ./config/gatus:/config:ro
       - watcher-state:/state
 
   # 数据导出：每 2 分钟把 Gatus 的 SQLite 导成状态页读取的静态 JSON
   status-collector:
-    image: python:3-alpine
+    image: *core-image
     container_name: status-collector
     restart: unless-stopped
     command:
@@ -83,7 +83,6 @@ services:
     environment:
       - TZ=${TZ:-Asia/Shanghai}
     volumes:
-      - ./collector:/app:ro
       - ./web:/web
       - gatus-data:/gatus
 
