@@ -268,5 +268,6 @@ resolved（已恢复，写入 resolvedAt）
 ## 14. 相关文档
 
 - [README](../README.md) —— 快速开始与配置
+- [USAGE](USAGE.md) —— 首次登录、后台各页面用法、备份升级
 - [HANDOVER](../HANDOVER.md) —— 文件地图、运维命令、踩坑记录
 - [SECURITY](../SECURITY.md) —— 安全基线与漏洞报告

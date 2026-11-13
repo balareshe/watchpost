@@ -7,12 +7,13 @@
 | 文档 | 什么时候看 |
 |---|---|
 | 本文件 | 第一次跑起来：快速开始、配置项、上线检查 |
+| [使用手册](docs/USAGE.md) | **日常使用**：首次登录、后台每个页面怎么用、前台看什么、备份升级 |
 | [HANDOVER](HANDOVER.md) | 接手维护：文件地图、部署与回滚、运维命令、踩坑记录 |
 | [docs/ARCHITECTURE](docs/ARCHITECTURE.md) | 想改架构：每个选择的理由、付出的代价、什么时候该换 |
 | [SECURITY](SECURITY.md) | 上报漏洞、部署侧安全基线 |
 | [LICENSE](LICENSE) / [NOTICE](NOTICE) | 授权范围与第三方组件许可证 |
 
-> 阅读顺序：README → HANDOVER → ARCHITECTURE。
+> 阅读顺序：README（装起来）→ USAGE（用起来）→ HANDOVER（接手）→ ARCHITECTURE（改造）。
 
 ```
 浏览器 ──HTTPS──► Caddy ──┬─► 静态页（web/）

@@ -51,6 +51,7 @@
 | `.github/workflows/ci.yml` | CI：Python 语法+冒烟、前端构建、compose 校验 | PR 质量 |
 | `.github/workflows/release.yml` | 打 tag 自动构建镜像推 GHCR（amd64+arm64） | 镜像发布 |
 | `docs/ARCHITECTURE.md` | 设计决策与取舍（为什么不用数据库、为什么先重试再开单） | 架构理解 |
+| `docs/USAGE.md` | 使用手册（首次登录、后台各页面、前台说明、备份升级） | 用户上手 |
 | `VERSION` | 版本号，`/api/health` 与后台侧栏显示 | 版本标识 |
 | `LICENSE` / `NOTICE` | 非商业许可 + 第三方组件许可证 | 授权 |
 
@@ -238,6 +239,7 @@ sh deploy/verify.sh <域名>                         # 分组逐项验收
 25. **首次安装向导**：不填 `ADMIN_EMAILS` 时没有账号可登录（历史设计缺陷）。现在 `/admin/` 会自动进安装页，令牌从日志取。见 README「快速开始」。
 26. **安装接口必须默认关闭**：`GET /api/setup` 只报 `needed`；`POST` 需要一次性令牌、单 IP 限流、且 `users` 非空时永久拒绝，否则就是公网抢注后门。
 27. **初始化令牌不能落盘**：只存内存、只打印日志，容器重启即失效；不要为了「方便」写进 `.env` 或返回给前端。
+28. **代码级默认值要和 compose 默认值对齐**：`FAIL_THRESHOLD` 曾是 compose 写 1、`watch.py` 写 3，用 compose 跑没问题，`docker run` / 直接跑脚本就变成 3。改默认值时三处一起改：`.env.example`、`docker-compose.yml`、`os.environ.get(..., "N")`。
 
 ---
 
