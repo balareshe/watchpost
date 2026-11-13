@@ -17,6 +17,7 @@ cp .env.example .env
 # 至少改这两项：
 #   ADMIN_TOKEN=<随机 24 位以上>
 #   ADMIN_EMAILS=you@example.com
+docker compose pull      # 拉取预构建镜像 ghcr.io/balareshe/watchpost-core
 docker compose up -d
 ```
 
@@ -114,6 +115,7 @@ docker compose down
 docker volume create watchpost_api-data
 docker run --rm -v watchpost_api-data:/d -v $PWD:/b alpine tar -C /d -xzf /b/api-data.tgz
 docker run --rm -v watchpost_gatus-data:/d -v $PWD:/b alpine tar -C /d -xzf /b/gatus-data.tgz
+docker compose pull      # 拉取预构建镜像 ghcr.io/balareshe/watchpost-core
 docker compose up -d
 ```
 
