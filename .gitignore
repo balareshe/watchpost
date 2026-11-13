@@ -16,3 +16,6 @@ legacy/
 *.log
 .DS_Store
 Thumbs.db
+
+# 私有部署信息（域名/服务器/凭据位置）
+HANDOVER.local.md
