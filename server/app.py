@@ -25,6 +25,9 @@ DATA = os.environ.get("DATA_FILE", "/data/status-data.json")
 TOKEN = (os.environ.get("ADMIN_TOKEN") or "").strip()
 TZ = dt.timezone(dt.timedelta(hours=8))
 LOCK = threading.Lock()
+# 会话文件用独立的可重入锁：读-改-写必须整体串行，否则并发登录会互相覆盖
+# （与业务数据分开加锁，避免持 LOCK 时再取会话锁造成死锁）
+SESS_LOCK = threading.RLock()
 
 # ---- 登录 / 邮件 ----
 ADMIN_EMAILS = {e.strip().lower() for e in (os.environ.get("ADMIN_EMAILS") or "").split(",") if e.strip()}
@@ -104,6 +107,7 @@ DEFAULT_SETTINGS = {
     "subtitle": "数据每 30 秒刷新一次",
     "favicon": "",
     "slowMs": 800,
+    "slowStreak": 3,
     "templates": {
         "downTitle": "{name} 无法访问（{time} 起）",
         "downSummary": "自动监控发现「{name}」无法正常访问：连续 {fails} 次探测失败，"
@@ -127,7 +131,7 @@ DEFAULT_SETTINGS = {
     },
 }
 
-PUBLIC_SETTING_KEYS = ("siteName", "pageTitle", "subtitle", "favicon", "slowMs")
+PUBLIC_SETTING_KEYS = ("siteName", "pageTitle", "subtitle", "favicon", "slowMs", "slowStreak")
 MASKED = "********"
 
 
@@ -207,6 +211,7 @@ def build_incident(body):
         "owner": text(body.get("owner"), 40),
         "auto": bool(body.get("auto")),
         "silent": bool(body.get("silent")),
+        "kind": text(body.get("kind"), 20),
         "updates": [],
         "createdAt": now_iso(),
     }
@@ -364,17 +369,18 @@ def session_user(sid):
     """返回 {"email", "role"} 或 None。"""
     if not sid:
         return None
-    sessions = load_sessions()
-    item = sessions.get(sid)
-    if not item:
-        return None
-    if item.get("exp", 0) < time.time():
-        sessions.pop(sid, None)
-        save_sessions(sessions)
-        return None
-    email = item.get("email")
-    role = item.get("role") or "admin"
-    return {"email": email, "role": role}
+    with SESS_LOCK:
+        sessions = load_sessions()
+        item = sessions.get(sid)
+        if not item:
+            return None
+        if item.get("exp", 0) < time.time():
+            sessions.pop(sid, None)
+            save_sessions(sessions)
+            return None
+        email = item.get("email")
+        role = item.get("role") or "admin"
+        return {"email": email, "role": role}
 
 
 def session_email(sid):
@@ -416,19 +422,21 @@ def allowed_user(email):
 
 def create_session(email, role="admin"):
     sid = secrets.token_urlsafe(32)
-    sessions = load_sessions()
-    now = time.time()
-    sessions = {k: v for k, v in sessions.items() if v.get("exp", 0) > now}
-    sessions[sid] = {"email": email, "role": role, "exp": now + SESSION_TTL, "at": now}
-    save_sessions(sessions)
+    with SESS_LOCK:
+        sessions = load_sessions()
+        now = time.time()
+        sessions = {k: v for k, v in sessions.items() if v.get("exp", 0) > now}
+        sessions[sid] = {"email": email, "role": role, "exp": now + SESSION_TTL, "at": now}
+        save_sessions(sessions)
     return sid
 
 
 def drop_session(sid):
-    sessions = load_sessions()
-    if sid in sessions:
-        sessions.pop(sid)
-        save_sessions(sessions)
+    with SESS_LOCK:
+        sessions = load_sessions()
+        if sid in sessions:
+            sessions.pop(sid)
+            save_sessions(sessions)
 
 
 def resolve_smtp():
@@ -501,7 +509,8 @@ def notify_incident(incident, kind="new"):
         "site": site,
         "title": incident.get("title") or "",
         "components": "、".join(incident.get("affected") or []) or "—",
-        "severity": "不可用" if incident.get("severity") == "down" else "部分异常",
+        "severity": {"critical": "不可用", "major": "严重", "minor": "部分异常",
+                     "info": "提示", "maintenance": "维护"}.get(norm_severity(incident.get("severity")), "部分异常"),
         "summary": incident.get("summary") or "",
         "status": incident.get("status") or "",
         "time": dt.datetime.now(TZ).strftime("%Y-%m-%d %H:%M"),
@@ -708,7 +717,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._deny("admin")
             with LOCK:
                 data = load()
-            return self._send(200, {parts[1]: data[parts[1]]})
+            items = data[parts[1]]
+            # 节点地址不对匿名暴露：只有登录用户或服务令牌能拿到 url
+            if parts[1] == "nodes" and not self._authorized("read"):
+                items = [{k: v for k, v in node.items() if k != "url"} for node in items]
+            return self._send(200, {parts[1]: items})
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
@@ -836,12 +849,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PATCH(self):
         parts = self._parts()
+        # 与 do_POST 一致：先读掉请求体，否则鉴权失败时 body 会留在 keep-alive 连接里
+        raw_body = self._read_body()
         level = self._level_for(parts)
         if not self._authorized(level):
             return self._deny(level)
         if len(parts) != 3 or parts[0] != "api" or parts[1] not in COLLECTIONS:
             return self._send(404, {"error": "not found"})
-        body = self._read_body()
+        body = raw_body
         if body is None:
             return self._send(400, {"error": "invalid json"})
         name = parts[1]
@@ -870,10 +885,11 @@ class Handler(BaseHTTPRequestHandler):
             save(data)
             if name == "users" and removed:
                 gone = (removed[0].get("email") or "").lower()
-                sessions = load_sessions()
-                keep = {k: v for k, v in sessions.items() if (v.get("email") or "").lower() != gone}
-                if len(keep) != len(sessions):
-                    save_sessions(keep)
+                with SESS_LOCK:
+                    sessions = load_sessions()
+                    keep = {k: v for k, v in sessions.items() if (v.get("email") or "").lower() != gone}
+                    if len(keep) != len(sessions):
+                        save_sessions(keep)
             return self._send(200, {"deleted": before - len(data[name])})
 
     def log_message(self, fmt, *args):

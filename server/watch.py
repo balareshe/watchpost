@@ -95,7 +95,15 @@ def active_window(maintenance):
     return None
 
 
-def write_feed(incidents, announcements):
+def load_site_name():
+    """RSS 里的站点名跟着「系统设置」走，读不到就用通用名。"""
+    try:
+        return (http_json(API + "/api/settings").get("siteName") or "").strip()
+    except Exception:
+        return ""
+
+
+def write_feed(incidents, announcements, site_name=""):
     items = []
 
     for inc in (incidents or [])[:30]:
@@ -147,8 +155,8 @@ def write_feed(incidents, announcements):
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<rss version="2.0"><channel>'
         "<title>站点状态 · 事件与公告</title>"
-        "<link>%s/</link><description>西木会馆 · 应用 服务状态与公告</description>"
-        "<language>zh-CN</language>%s</channel></rss>\n" % (SITE, entries)
+        "<link>%s/</link><description>%s · 服务状态与公告</description>"
+        "<language>zh-CN</language>%s</channel></rss>\n" % (SITE, escape(site_name or "站点状态"), entries)
     )
     target = os.path.join(WEB, "feed.xml")
     tmp = target + ".tmp"
@@ -226,13 +234,14 @@ def probe(url):
     return ok, code, int((time.time() - started) * 1000)
 
 
-def sync_nodes():
+def sync_nodes(nodes=None):
     """探测自定义节点，维护 24h 采样，写出 /web/data/nodes.json。"""
-    try:
-        nodes = http_json(API + "/api/nodes").get("nodes", [])
-    except Exception as exc:
-        log("读取节点失败: %r" % (exc,))
-        return
+    if nodes is None:
+        try:
+            nodes = http_json(API + "/api/nodes", auth=True).get("nodes", [])
+        except Exception as exc:
+            log("读取节点失败: %r" % (exc,))
+            return
 
     state = load_state()
     now = time.time()
@@ -301,19 +310,28 @@ def slow_streak_from_results(results, threshold_ms):
 
 
 def is_slow_incident(inc):
+    """慢响应用单的稳定标识。kind 是新字段；老数据回退到「silent + 标题」判断。"""
+    if inc.get("kind") == "slow":
+        return True
     return bool(inc.get("silent")) and "响应变慢" in (inc.get("title") or "")
 
 
 
-def load_templates():
-    """模板以「系统设置」为准，读取失败回落到内置默认值。"""
+def load_site_settings():
+    """模板与慢响应参数以「系统设置」为准，读取失败回落到内置默认值 / 环境变量。"""
     try:
         data = http_json(API + "/api/settings/full", auth=True)
-        merged = dict(DEFAULT_TEMPLATES)
-        merged.update((data.get("templates") or {}))
-        return merged
+        return data if isinstance(data, dict) else {}
     except Exception:
-        return dict(DEFAULT_TEMPLATES)
+        return {}
+
+
+def as_int(value, default, minimum=0):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return number if number >= minimum else default
 
 
 def render_tpl(tpl, ctx):
@@ -378,6 +396,12 @@ def tick():
     urls = load_probe_urls()
     window = active_window(maintenance)
     changed = False
+    # 模板与慢响应参数每轮取一次，避免每个端点各打一次设置接口
+    settings = load_site_settings()
+    tpl = dict(DEFAULT_TEMPLATES)
+    tpl.update(settings.get("templates") or {})
+    slow_streak = as_int(settings.get("slowStreak"), SLOW_STREAK, minimum=1)
+    slow_ms = as_int(settings.get("slowMs"), SLOW_MS, minimum=0)
 
     def active_for(name):
         for inc in incidents:
@@ -394,8 +418,8 @@ def tick():
         oks = trailing_run(results, True)
         open_incident = active_for(name)
 
-        # 黄色波动先自动重试，3 次都失败才升级为红色并开单
-        if fails >= 1 and not open_incident and not window:
+        # 连续失败达到 FAIL_THRESHOLD 次后先立即重试，全部失败才升级为红色并开单
+        if fails >= FAIL_THRESHOLD and not open_incident and not window:
             confirmed, detail = confirm_failure(urls.get(name))
             if not confirmed:
                 log("重试成功，忽略本次波动: %s（连续失败 %d 次）" % (name, fails))
@@ -403,7 +427,7 @@ def tick():
             log("重试 %d 次仍失败，升级为红色并开单: %s" % (RETRY_TIMES, name))
 
         # 自动开单
-        if fails >= 1 and not open_incident and not window:
+        if fails >= FAIL_THRESHOLD and not open_incident and not window:
             probe = last_probe_info(results)
             started_at = fmt_when(failure_started_at(results))
             code = probe["status"] if probe else None
@@ -414,7 +438,6 @@ def tick():
             else:
                 status_text = "HTTP %s" % code
             cost_text = ("耗时 %d ms" % probe["ms"]) if (probe and probe["ms"] > 0) else "无响应"
-            tpl = load_templates()
             ctx_down = {
                 "name": name,
                 "time": fmt_hm(started_at) or dt.datetime.now(TZ).strftime("%H:%M"),
@@ -472,30 +495,30 @@ def tick():
         incidents = http_json(API + "/api/incidents").get("incidents", [])
 
     try:
-        write_feed(incidents, announcements)
+        write_feed(incidents, announcements, load_site_name())
     except OSError as exc:
         log("RSS 写入失败: %s" % exc)
 
     try:
-        sync_nodes()
+        nodes_cfg = http_json(API + "/api/nodes", auth=True).get("nodes", [])
+    except Exception as exc:
+        log("读取节点失败: %r" % (exc,))
+        nodes_cfg = []
+
+    try:
+        sync_nodes(nodes_cfg)
     except Exception as exc:
         log("自定义节点同步失败: %r" % (exc,))
 
     # ---- 慢响应：连续 N 次超过阈值 → 记录一条黄色事件（不发邮件、不升级红色）----
-    try:
-        nodes_cfg = http_json(API + "/api/nodes").get("nodes", [])
-    except Exception:
-        nodes_cfg = []
-
     thresholds = {}
     for n in nodes_cfg:
         if isinstance(n.get("slowMs"), (int, float)) and n["slowMs"] > 0:
             thresholds[n.get("name")] = n["slowMs"]
 
     def threshold_for(name):
-        return thresholds.get(name, SLOW_MS)
+        return thresholds.get(name, slow_ms)
 
-    incidents = http_json(API + "/api/incidents").get("incidents", [])
     local_state = load_state()
 
     def open_incident_for(name):
@@ -528,7 +551,8 @@ def tick():
     for name, streak, last_ms in slow_candidates:
         open_inc = open_incident_for(name)
         threshold = threshold_for(name)
-        tpl = load_templates()
+        if not threshold:  # 阈值 0 = 关闭慢响应判定
+            continue
         ctx_slow = {
             "name": name,
             "time": dt.datetime.now(TZ).strftime("%H:%M"),
@@ -538,7 +562,7 @@ def tick():
             "lastMs": last_ms,
             "components": name,
         }
-        if streak >= SLOW_STREAK and not open_inc and not window:
+        if streak >= slow_streak and not open_inc and not window:
             try:
                 http_json(API + "/api/incidents", "POST", {
                     "title": render_tpl(tpl["slowTitle"], ctx_slow),
@@ -549,6 +573,7 @@ def tick():
                     "owner": "自动监控",
                     "auto": True,
                     "silent": True,
+                    "kind": "slow",
                     "summary": render_tpl(tpl["slowSummary"], ctx_slow),
                     "summaryEn": "%s latency exceeded %d ms for %d consecutive checks (latest %d ms)."
                                  % (name, threshold, streak, last_ms),

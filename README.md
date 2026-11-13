@@ -2,6 +2,18 @@
 
 > 一个自包含的状态页（源代码开放，非商业许可）：探针、事件工单、公告、维护窗口、邮件通知、后台管理，一条 docker compose up -d 跑起来。接手维护请先看 [交接文档](HANDOVER.md)。
 
+## 文档导航
+
+| 文档 | 什么时候看 |
+|---|---|
+| 本文件 | 第一次跑起来：快速开始、配置项、上线检查 |
+| [HANDOVER](HANDOVER.md) | 接手维护：文件地图、部署与回滚、运维命令、踩坑记录 |
+| [docs/ARCHITECTURE](docs/ARCHITECTURE.md) | 想改架构：每个选择的理由、付出的代价、什么时候该换 |
+| [SECURITY](SECURITY.md) | 上报漏洞、部署侧安全基线 |
+| [LICENSE](LICENSE) / [NOTICE](NOTICE) | 授权范围与第三方组件许可证 |
+
+> 阅读顺序：README → HANDOVER → ARCHITECTURE。
+
 ```
 浏览器 ──HTTPS──► Caddy ──┬─► 静态页（web/）
                           ├─► /api/incidents|announcements|maintenance|nodes|users|settings|auth ─► status-api
@@ -84,6 +96,7 @@ cd admin-app && npm install && npm run build   # 产物输出到 web/admin/
 | `DOMAIN` / `PUBLIC_URL` | 对外域名与完整地址 |
 | `SMTP_*` | 邮件服务器（也可在后台「通知」页配置） |
 | `RETRY_TIMES` / `RETRY_GAP_SEC` | 失败重试次数与间隔，全失败才升红开单 |
+| `FAIL_THRESHOLD` | 连续失败多少次才进入「重试 → 开单」流程，默认 1 |
 | `SLOW_MS` / `SLOW_STREAK` | 慢响应阈值与连续次数 |
 | `RECOVER_THRESHOLD` | 连续成功多少次判定恢复 |
 
@@ -101,6 +114,7 @@ sh deploy/verify.sh 你的域名
 - 会话 Cookie：`HttpOnly; Secure; SameSite=Lax`，7 天有效
 - 安全响应头：HSTS、nosniff、X-Frame-Options、CSP(frame-ancestors)、Referrer-Policy
 - `/data/*`、`/config/*`、`/.env`、`/.git/*` 一律 404
+- 自定义节点的地址只对登录用户 / 服务令牌可见，匿名读 `GET /api/nodes` 不含 `url`
 - **证书**：默认 Caddy 自签（`tls internal`），Cloudflare 需设 `Full`；若用 Cloudflare Origin 证书可设 `Full (strict)`
 - 生产建议：关闭 SSH 密码登录、给 `/admin` 加 WAF 速率限制、定期轮换 `ADMIN_TOKEN`
 

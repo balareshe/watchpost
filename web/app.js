@@ -587,6 +587,7 @@
   function applySiteSettings(site) {
     if (!site) return;
     if (site.slowMs != null) STORE.slowMs = Number(site.slowMs) || 0;
+    if (site.slowStreak != null) STORE.slowStreak = Number(site.slowStreak) || 3;
     if (site.siteName) {
       var brandName = document.getElementById("brandName") || document.querySelector(".brand");
       if (brandName) brandName.textContent = site.siteName;
@@ -808,7 +809,7 @@
   incEl.addEventListener("click", function (ev) {
     if (!ev.target.closest(".inc-more")) return;
     incExpanded = !incExpanded;
-    renderIncidents(STORE.incidents);
+    renderIncidents(allIncidents());
   });
 
   load();  setInterval(load, REFRESH_MS);

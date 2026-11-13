@@ -50,6 +50,7 @@
 | `deploy/verify.sh` | 验收检查：页面 / 敏感路径 / 鉴权 / 安全头 / 容器 / 密钥权限 | 上线自检 |
 | `.github/workflows/ci.yml` | CI：Python 语法+冒烟、前端构建、compose 校验 | PR 质量 |
 | `.github/workflows/release.yml` | 打 tag 自动构建镜像推 GHCR（amd64+arm64） | 镜像发布 |
+| `docs/ARCHITECTURE.md` | 设计决策与取舍（为什么不用数据库、为什么先重试再开单） | 架构理解 |
 | `VERSION` | 版本号，`/api/health` 与后台侧栏显示 | 版本标识 |
 | `LICENSE` / `NOTICE` | 非商业许可 + 第三方组件许可证 | 授权 |
 
@@ -124,6 +125,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 | `SMTP_HOST/PORT/USER/PASS/FROM/SECURE` | — | 邮件；也可在后台「通知」页配置（后台优先） |
 | `DEV_ECHO_CODE` | — | 调试用：把验证码回显到登录框，**生产必须为 0** |
 | `RETRY_TIMES` / `RETRY_GAP_SEC` | — | 失败重试次数与间隔，全失败才升红开单 |
+| `FAIL_THRESHOLD` | — | 连续失败多少次才进入「重试 → 开单」流程，默认 1（一次失败就重试确认） |
 | `SLOW_MS` / `SLOW_STREAK` | — | 慢响应阈值（ms）与连续次数 |
 | `RECOVER_THRESHOLD` | — | 连续成功多少次判定恢复 |
 | `COLLECT_INTERVAL` / `INTERVAL_SEC` | — | 采集与 watcher 轮询间隔（秒） |
@@ -223,6 +225,13 @@ sh deploy/verify.sh <域名>                         # 分组逐项验收
 
 19. **Windows 上的 shell 脚本会带 CRLF**：用 PowerShell 写出的 `.sh` 在 Linux 上执行报 `word unexpected`，需统一转 LF。
 20. **PowerShell 双引号里 `\n` 不是换行**：往文件写 Markdown 时会写进字面量 `\n`。改文件内容优先用 Python/Node 脚本。
+
+### 2026-11 修复（v0.1.1）
+
+21. **每个带 body 的方法都要先读完请求体再鉴权**：POST 早就这么写了，PATCH 漏了，同样能复现 `{"..."}PATCH` → 501。新增带 body 的方法时别忘。
+22. **`sessions.json` 的读-改-写要整体加锁**：只有文件级原子替换不够，两个并发登录会互相覆盖，表现为「刚登录就被踢」。
+23. **慢响应工单别用标题文案当标识**：去重和自动关闭都靠 `is_slow_incident()`，后台一改模板就失效。现在写入 `kind: "slow"`，老数据仍按「silent + 标题」回退。
+24. **dev 模式改 `collector/collect.py` 不生效**：镜像里执行的是 `/app/collect.py` 这份拷贝，只挂 `./collector` 没用；dev 覆盖已把 command 改成走挂载路径。
 
 ---
 

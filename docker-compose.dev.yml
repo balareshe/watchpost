@@ -28,6 +28,15 @@ services:
       context: .
       dockerfile: Dockerfile
     image: watchpost-core:dev
+    # 镜像里跑的是 /app/collect.py 这份拷贝；dev 下改走挂载的源码，改 collect.py 才即时生效
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          python /app/collector/collect.py /gatus/data.db /web/data/status.json || echo "[collector] 本轮失败"
+          sleep ${COLLECT_INTERVAL:-120}
+        done
     volumes:
       - ./collector:/app/collector:ro
       - ./web:/web

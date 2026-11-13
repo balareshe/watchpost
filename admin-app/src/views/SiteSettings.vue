@@ -11,6 +11,7 @@ const form = ref({
   subtitle: "",
   favicon: "",
   slowMs: 800,
+  slowStreak: 3,
   templates: {}
 });
 
@@ -43,6 +44,7 @@ async function load() {
       subtitle: data.subtitle || "",
       favicon: data.favicon || "",
       slowMs: data.slowMs == null ? 800 : data.slowMs,
+      slowStreak: data.slowStreak == null ? 3 : data.slowStreak,
       templates: { ...DEFAULT_TPL, ...(data.templates || {}) }
     };
   } catch (e) {
@@ -86,7 +88,10 @@ onMounted(load);
 
       <label>慢响应阈值（毫秒，超过则显示黄色）</label>
       <input v-model.number="form.slowMs" type="number" min="100" step="50" placeholder="800" />
-      <p class="muted" style="margin-top: 4px">节点仍可用但延迟 ≥ 该值时，状态会显示为黄色「部分服务响应较慢」；填 0 关闭。</p>
+
+      <label>慢响应判定次数（连续几次超阈值才算）</label>
+      <input v-model.number="form.slowStreak" type="number" min="1" max="20" step="1" placeholder="3" />
+      <p class="muted" style="margin-top: 4px">节点仍可用但延迟 ≥ 阈值、且连续 N 次都超过时，才显示黄色「部分服务响应较慢」，同时记一条不发邮件的记录；阈值填 0 关闭。</p>
 
       <label>站点图标（emoji 或图片 URL）</label>
       <input v-model="form.favicon" type="text" placeholder="📊 或 https://example.com/icon.png" />

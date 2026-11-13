@@ -17,6 +17,7 @@
 - 会话 Cookie：`HttpOnly; Secure; SameSite=Lax`
 - 写接口全部需要登录或服务令牌，匿名请求返回 401
 - `/data/*`、`/config/*`、`/.env`、`/.git/*` 一律 404
+- 自定义节点地址不对匿名暴露：`GET /api/nodes` 匿名返回会剥掉 `url`，仅登录用户或服务令牌可见
 - 安全响应头：HSTS、`X-Content-Type-Options`、`X-Frame-Options`、`CSP frame-ancestors`、`Referrer-Policy`
 - 邮件密码在设置接口中打码返回
 

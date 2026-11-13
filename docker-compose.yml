@@ -55,7 +55,7 @@ services:
       - STATE_DIR=/state
       - GATUS_CONFIG=/config/config.yaml
       - SITE_URL=${PUBLIC_URL:-https://status.example.com}
-      - FAIL_THRESHOLD=${FAIL_THRESHOLD:-3}
+      - FAIL_THRESHOLD=${FAIL_THRESHOLD:-1}
       - RECOVER_THRESHOLD=${RECOVER_THRESHOLD:-3}
       - RETRY_TIMES=${RETRY_TIMES:-3}
       - RETRY_GAP_SEC=${RETRY_GAP_SEC:-2}
