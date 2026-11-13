@@ -68,6 +68,10 @@
 		reverse_proxy status-api:8099
 	}
 
+	handle /api/setup {
+		reverse_proxy status-api:8099
+	}
+
 	handle /api/users* {
 		reverse_proxy status-api:8099
 	}

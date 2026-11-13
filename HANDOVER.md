@@ -240,6 +240,7 @@ sh deploy/verify.sh <域名>                         # 分组逐项验收
 26. **安装接口必须默认关闭**：`GET /api/setup` 只报 `needed`；`POST` 需要一次性令牌、单 IP 限流、且 `users` 非空时永久拒绝，否则就是公网抢注后门。
 27. **初始化令牌不能落盘**：只存内存、只打印日志，容器重启即失效；不要为了「方便」写进 `.env` 或返回给前端。
 28. **代码级默认值要和 compose 默认值对齐**：`FAIL_THRESHOLD` 曾是 compose 写 1、`watch.py` 写 3，用 compose 跑没问题，`docker run` / 直接跑脚本就变成 3。改默认值时三处一起改：`.env.example`、`docker-compose.yml`、`os.environ.get(..., "N")`。
+29. **新增 API 必须同时在 Caddyfile 里加白名单**：`/api/*` 的兜底是转发给 Gatus，不是给 API。v0.1.2 加了 `/api/setup` 却忘了改 Caddyfile，表现为 `Cannot GET /api/setup`（请求进了 Gatus），而直连容器 8099 一切正常——排查时先 `docker exec` 直连绕过 Caddy 定位。改完 `caddy validate` + `caddy reload` 热加载，不用重启容器。
 
 ---
 
